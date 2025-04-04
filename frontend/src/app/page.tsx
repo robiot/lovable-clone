@@ -84,136 +84,87 @@ export default function Home() {
             </div>
           )}
 
-          {/* Input Card */}
-          <div className="w-full bg-zinc-900/70 border border-zinc-800 rounded-xl overflow-hidden mb-8">
-            <form onSubmit={handleCreateProject}>
-              <div className="p-5">
-                <p className="text-zinc-400 mb-4">create</p>
-                <div className="flex flex-col gap-4">
-                  <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe the app you want to build..."
-                    className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg p-4 text-white resize-none h-24 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    disabled={isLoading}
-                  />
-                  {error && (
-                    <div className="text-red-500 text-sm py-2">{error}</div>
-                  )}
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="button-outline"
-                        disabled={isLoading}
+          <form onSubmit={handleCreateProject} className="w-full">
+            <div className="w-full">
+              <div className="flex flex-col gap-4">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Describe the app you want to build..."
+                  className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg p-4 text-white resize-none h-24 focus:outline-none focus:ring-0"
+                  disabled={isLoading}
+                />
+                {error && (
+                  <div className="text-red-500 text-sm py-2">{error}</div>
+                )}
+                <div className="flex justify-between items-center">
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="button-outline"
+                      disabled={isLoading}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <rect width="18" height="18" x="3" y="3" rx="2" />
-                          <path d="M3 9h18" />
-                        </svg>
-                        Attach
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="button-outline"
-                        disabled={isLoading}
+                        <rect width="18" height="18" x="3" y="3" rx="2" />
+                        <path d="M3 9h18" />
+                      </svg>
+                      Attach
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="button-outline"
+                      disabled={isLoading}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                          <polyline points="7 10 12 15 17 10" />
-                          <line x1="12" x2="12" y1="15" y2="3" />
-                        </svg>
-                        Import
-                      </Button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="submit"
-                        className="bg-purple-600 hover:bg-purple-700"
-                        disabled={isLoading || !prompt.trim()}
-                      >
-                        {isLoading ? (
-                          <>
-                            <Loader2 size={18} className="mr-2 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          "Create"
-                        )}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="button-outline"
-                        disabled={isLoading}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                          <polyline points="15 3 21 3 21 9" />
-                          <line x1="10" x2="21" y1="14" y2="3" />
-                        </svg>
-                        Public
-                      </Button>
-                    </div>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" x2="12" y1="15" y2="3" />
+                      </svg>
+                      Import
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      className="bg-purple-600 hover:bg-purple-700 w-32"
+                      disabled={isLoading || !prompt.trim()}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 size={18} className="mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Create"
+                      )}
+                    </Button>
                   </div>
                 </div>
               </div>
-            </form>
-          </div>
-
-          {/* Quick Access Demo Project */}
-          <div className="w-full bg-zinc-900/70 border border-zinc-800 rounded-xl p-4 mb-8 text-center">
-            <h3 className="text-lg font-medium mb-2">Try the Demo Project</h3>
-            <p className="text-zinc-400 mb-4">
-              Experience the fully functional chat interface with our
-              pre-configured demo project
-            </p>
-            <Link href="/project/demo-project">
-              <Button className="bg-purple-600 hover:bg-purple-700">
-                Open Demo Project
-              </Button>
-            </Link>
-          </div>
-
-          {/* Template Cards */}
-          <div className="w-full grid grid-cols-2 md:grid-cols-4 gap-3">
-            <TemplateCard name="3D product viewer" />
-            <TemplateCard name="Bill splitter" />
-            <TemplateCard name="E-commerce store" />
-            <TemplateCard name="Slidev presentation" />
-          </div>
+            </div>
+          </form>
 
           {/* Divider */}
           <div className="divider" />
@@ -273,23 +224,11 @@ export default function Home() {
             </button>
           </div>
 
-          {/* No Projects Message */}
           <div className="text-zinc-500 text-center py-12">
             No projects found
           </div>
         </div>
       </main>
     </div>
-  );
-}
-
-function TemplateCard({ name }: { name: string }) {
-  return (
-    <button className="card-template p-3 flex items-center justify-between group">
-      <span className="text-sm text-zinc-300 group-hover:text-white">
-        {name}
-      </span>
-      <ArrowUpRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300" />
-    </button>
   );
 }

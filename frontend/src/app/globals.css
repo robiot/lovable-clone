@@ -59,12 +59,6 @@
 }
 
 @layer components {
-  .gradient-heart {
-    background: linear-gradient(135deg, #ff7b54, #fb2576, #8e2de2, #4a00e0);
-    background-size: 400% 400%;
-    animation: gradient 15s ease infinite;
-  }
-
   .gradient-text {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-[#ff5f6d] to-[#6a82fb];
   }
