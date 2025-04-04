@@ -33,96 +33,169 @@ export async function POST(request: Request) {
     }
 
     const projectDir = path.join(PROJECTS_DIR, body.projectId);
-    const systemPrompt = await buildSystemPrompt(
-      body.projectId,
-      body.current_page,
-      projectDir
-    );
 
-    const messages = [
-      { role: "assistant" as const, content: systemPrompt },
-      ...body.messages.map((msg) => ({
-        role: msg.role === "system" ? ("assistant" as const) : msg.role,
-        content: msg.content || "",
-      })),
-    ];
+    const encoder = new TextEncoder();
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
 
-    const response = await anthropic.messages.create({
-      model: "claude-3-7-sonnet-20250219",
-      max_tokens: 4000,
-      tools: [
-        {
-          name: "run_command",
-          description: "Run a terminal command inside the project folder",
-          input_schema: {
-            type: "object",
-            properties: {
-              command: { type: "string", description: "The command to run" },
+    // Start streaming response
+    const streamResponse = async () => {
+      try {
+        const systemPrompt = await buildSystemPrompt(
+          body.projectId || "unknown id",
+          body.current_page,
+          projectDir
+        );
+
+        // Strip out id and timestamp from messages
+        const messages = [
+          { role: "assistant" as const, content: systemPrompt },
+          ...body.messages.map(({ role, content }) => ({
+            role: role === "system" ? "assistant" as const : role,
+            content: content || "",
+          })),
+        ];
+
+        const response = await anthropic.messages.create({
+          model: "claude-3-7-sonnet-20250219",
+          max_tokens: 4000,
+          tools: [
+            {
+              name: "run_command",
+              description: "Run a terminal command inside the project folder",
+              input_schema: {
+                type: "object",
+                properties: {
+                  command: { type: "string", description: "The command to run" },
+                },
+                required: ["command"],
+              },
             },
-            required: ["command"],
-          },
-        },
-        {
-          name: "read_file",
-          description: "Read a file from the project directory",
-          input_schema: {
-            type: "object",
-            properties: {
-              path: { type: "string" },
+            {
+              name: "read_file",
+              description: "Read a file from the project directory",
+              input_schema: {
+                type: "object",
+                properties: {
+                  path: { type: "string" },
+                },
+                required: ["path"],
+              },
             },
-            required: ["path"],
-          },
-        },
-        {
-          name: "write_file",
-          description: "Write content to a file in the project",
-          input_schema: {
-            type: "object",
-            properties: {
-              path: { type: "string" },
-              content: { type: "string" },
+            {
+              name: "write_file",
+              description: "Write content to a file in the project",
+              input_schema: {
+                type: "object",
+                properties: {
+                  path: { type: "string" },
+                  content: { type: "string" },
+                },
+                required: ["path", "content"],
+              },
             },
-            required: ["path", "content"],
-          },
-        },
-      ],
-      messages,
-    });
+          ],
+          messages,
+        });
 
-    const toolCall = response.content.find((c) => c.type === "tool_use");
+        const toolCall = response.content.find((c) => c.type === "tool_use");
 
-    if (toolCall && toolCall.type === "tool_use") {
-      const toolResult = await handleTool(toolCall, projectDir);
+        if (toolCall && toolCall.type === "tool_use") {
+          // Send tool status
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: "tool_status",
+                tool: toolCall.name,
+                status: "started",
+              })}\n\n`
+            )
+          );
 
-      const followup = await anthropic.messages.create({
-        model: "claude-3-7-sonnet-20250219",
-        max_tokens: 4000,
-        tools: [], // tools already used
-        messages: [
-          ...messages,
-          response, // original tool_use message
-          {
-            role: "user",
-            content: [
+          const toolResult = await handleTool(toolCall, projectDir);
+
+          // Send tool completion
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: "tool_status",
+                tool: toolCall.name,
+                status: "completed",
+                result: toolResult,
+              })}\n\n`
+            )
+          );
+
+          const followup = await anthropic.messages.create({
+            model: "claude-3-7-sonnet-20250219",
+            max_tokens: 4000,
+            tools: [],
+            messages: [
+              ...messages,
+              response,
               {
-                type: "tool_result",
-                tool_use_id: toolCall.id,
-                content: toolResult,
+                role: "user",
+                content: [
+                  {
+                    type: "tool_result",
+                    tool_use_id: toolCall.id,
+                    content: toolResult,
+                  },
+                ],
               },
             ],
-          },
-        ],
-      });
+          });
 
-      const finalResponse =
-        followup.content.find((c) => c.type === "text")?.text || "No response.";
+          const finalResponse =
+            followup.content.find((c) => c.type === "text")?.text || "No response.";
 
-      return NextResponse.json({ response: finalResponse, toolResult });
-    }
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: "message",
+                content: finalResponse,
+              })}\n\n`
+            )
+          );
+        } else {
+          const aiResponse =
+            response.content.find((c) => c.type === "text")?.text || "No response.";
 
-    const aiResponse =
-      response.content.find((c) => c.type === "text")?.text || "No response.";
-    return NextResponse.json({ response: aiResponse });
+          await writer.write(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: "message",
+                content: aiResponse,
+              })}\n\n`
+            )
+          );
+        }
+
+        await writer.write(encoder.encode("data: [DONE]\n\n"));
+      } catch (error) {
+        console.error("Streaming error:", error);
+        await writer.write(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "error",
+              content: "An error occurred while processing your request.",
+            })}\n\n`
+          )
+        );
+      } finally {
+        await writer.close();
+      }
+    };
+
+    streamResponse();
+
+    return new Response(stream.readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("Chat error:", error);
     return NextResponse.json(

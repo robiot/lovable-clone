@@ -36,12 +36,17 @@ export default function ProjectView({ project }: { project: Project }) {
     loading: true,
     error: null,
   });
+  const [activeTools, setActiveTools] = useState<{
+    reading?: boolean;
+    writing?: boolean;
+    running?: boolean;
+  }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [currentPage, _setCurrentPage] = useState("/");
 
   const searchParams = useSearchParams();
-  const router = useRouter();
+
   const initPrompt = searchParams.get("initialPrompt");
 
   // Initialize with welcome message
@@ -156,21 +161,20 @@ export default function ProjectView({ project }: { project: Project }) {
     const content = data || input;
     
     if (!content.trim() || isLoading) return;
-
+  
     const userMessage: Message = {
       id: generateId(),
       role: "user",
       content: content,
       timestamp: Date.now(),
     };
-
+  
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
     setIsThinking(true);
-
+  
     try {
-      // Send message to API
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: {
@@ -185,26 +189,77 @@ export default function ProjectView({ project }: { project: Project }) {
           current_page: currentPage,
         }),
       });
-
-      const data = await response.json();
-
-      // Add AI response to messages
-      const aiMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: data.response,
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-
-      // If a command was executed, add a system message with the result
-      if (data.commandResult) {
-        handleCommandResult(data.commandResult);
+  
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+  
+      const decoder = new TextDecoder();
+      let currentToolStatus = "";
+  
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+  
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+  
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+  
+            try {
+              const parsed = JSON.parse(data);
+              
+              if (parsed.type === "tool_status") {
+                if (parsed.status === "started") {
+                  currentToolStatus = parsed.tool;
+                  setActiveTools((prev) => ({
+                    ...prev,
+                    [parsed.tool === "read_file" ? "reading" : 
+                     parsed.tool === "write_file" ? "writing" : 
+                     parsed.tool === "run_command" ? "running" : ""]: true,
+                  }));
+                } else if (parsed.status === "completed") {
+                  setActiveTools((prev) => ({
+                    ...prev,
+                    [currentToolStatus === "read_file" ? "reading" : 
+                     currentToolStatus === "write_file" ? "writing" : 
+                     currentToolStatus === "run_command" ? "running" : ""]: false,
+                  }));
+  
+                  const toolMessage: Message = {
+                    id: generateId(),
+                    role: "system",
+                    content: `🛠️ Tool Operation Result:\n\`\`\`\n${parsed.result}\n\`\`\``,
+                    timestamp: Date.now(),
+                  };
+                  setMessages((prev) => [...prev, toolMessage]);
+                }
+              } else if (parsed.type === "message") {
+                const aiMessage: Message = {
+                  id: generateId(),
+                  role: "assistant",
+                  content: parsed.content,
+                  timestamp: Date.now(),
+                };
+                setMessages((prev) => [...prev, aiMessage]);
+                handleAutomaticActions(parsed.content);
+              } else if (parsed.type === "error") {
+                const errorMessage: Message = {
+                  id: generateId(),
+                  role: "assistant",
+                  content: parsed.content,
+                  timestamp: Date.now(),
+                };
+                setMessages((prev) => [...prev, errorMessage]);
+              }
+            } catch (e) {
+              console.error("Error parsing SSE data:", e);
+            }
+          }
+        }
       }
-
-      // Check if we need to execute any specific action based on the message
-      handleAutomaticActions(data.response);
     } catch (error) {
       console.error("Error sending message:", error);
       const errorMessage: Message = {
@@ -217,6 +272,7 @@ export default function ProjectView({ project }: { project: Project }) {
     } finally {
       setIsLoading(false);
       setIsThinking(false);
+      setActiveTools({});
     }
   };
 
@@ -242,7 +298,7 @@ export default function ProjectView({ project }: { project: Project }) {
   // Add messagesEndRef to MessageList component
   const MessageListWithRef = () => (
     <>
-      <MessageList messages={messages} isThinking={isThinking} />
+      <MessageList messages={messages} isThinking={isThinking} activeTools={activeTools} />
       <div ref={messagesEndRef} />
     </>
   );
