@@ -5,8 +5,13 @@ import path from 'node:path';
 
 // Mark this module as server-only
 import 'server-only';
+import Anthropic from '@anthropic-ai/sdk';
 
 export const exec = promisify(execCallback);
+
+export const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY || "",
+});
 
 // Function to copy a directory recursively
 export async function copyDirectory(source: string, destination: string) {

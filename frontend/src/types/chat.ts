@@ -25,7 +25,6 @@ export interface Project {
   description: string;
   createdAt: number;
   previewUrl?: string;
-  status: "initializing" | "ready" | "error";
   error?: string;
 }
 

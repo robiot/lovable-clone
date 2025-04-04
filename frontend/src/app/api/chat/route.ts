@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { runCommand } from "@/lib/server-utils";
+import { anthropic, runCommand } from "@/lib/server-utils";
 import path from "node:path";
 import fs from "node:fs/promises";
 import type { ChatRequest } from "@/types/chat";
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
-});
 
 // Projects directory
 const PROJECTS_DIR = path.join(process.cwd(), "projects");
@@ -55,11 +50,6 @@ export async function POST(request: Request) {
 
       systemPrompt += `You are working on a project called "${projectData.name}" with description: "${projectData.description}". `;
       systemPrompt += `The project is located at ${projectDir}. `;
-
-      // Add project status
-      if (projectData.status === "error" && projectData.error) {
-        systemPrompt += `The project currently has an error: ${projectData.error}. You should help fix this. `;
-      }
     } catch (error) {
       console.error(`Error loading project data for ${body.projectId}:`, error);
     }

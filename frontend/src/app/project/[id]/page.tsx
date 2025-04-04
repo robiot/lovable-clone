@@ -21,7 +21,6 @@ async function getProject(id: string): Promise<Project | null> {
       name: `Demo Project ${id}`,
       description: "A demo project for the Lovable interface",
       createdAt: Date.now(),
-      status: "ready",
     };
   }
 }

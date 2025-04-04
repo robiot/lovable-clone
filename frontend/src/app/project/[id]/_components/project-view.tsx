@@ -9,6 +9,7 @@ import { QuickPrompts } from "./quick-prompts";
 import { PreviewPanel } from "./preview-panel";
 import { ProjectHeader } from "./project-header";
 import { Sidebar } from "./sidebar";
+import { StartServer } from "@/types/server";
 
 export interface IframeInfo {
   url: string | null;
@@ -44,22 +45,13 @@ export default function ProjectView({ project }: { project: Project }) {
       {
         id: generateId(),
         role: "assistant",
-        content: `# Welcome to your project: ${
-          project.name
-        }\n\nI'm your AI assistant ready to help you build and modify your application. You can ask me questions, request changes, or give commands to modify the code.\n\n**Current Status**: ${
-          project.status === "ready"
-            ? "✅ Project is ready to use"
-            : project.status === "error"
-            ? `❌ Error: ${project.error}`
-            : "⏳ Setting up your environment..."
+        content: `# Welcome to your project: ${project.name}\n\nI'm your AI assistant ready to help you build and modify your application. You can ask me questions, request changes, or give commands to modify the code.\n\n
         }\n\nWhat would you like to do with your project today?`,
         timestamp: Date.now(),
       },
     ]);
 
-    if (project.status === "ready") {
-      startDevServer();
-    }
+    startDevServer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project]);
 
@@ -69,13 +61,6 @@ export default function ProjectView({ project }: { project: Project }) {
 
   const handleIframeLoad = () => {
     setIframe((prev) => ({ ...prev, loading: false }));
-    try {
-      if (iframeRef.current?.contentWindow?.location.pathname) {
-        setCurrentPage(iframeRef.current.contentWindow.location.pathname);
-      }
-    } catch (error) {
-      console.error("Error accessing iframe content:", error);
-    }
   };
 
   const startDevServer = async () => {
@@ -92,12 +77,12 @@ export default function ProjectView({ project }: { project: Project }) {
         }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as StartServer;
 
       console.log({ data });
 
       setIframe({
-        url: "http://localhost:3000",
+        url: `http://localhost:${data.port}`,
         loading: true,
         error: null,
       });
