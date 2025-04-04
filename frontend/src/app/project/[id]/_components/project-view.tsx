@@ -10,6 +10,7 @@ import { PreviewPanel } from "./preview-panel";
 import { ProjectHeader } from "./project-header";
 import { Sidebar } from "./sidebar";
 import { StartServer } from "@/types/server";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export interface IframeInfo {
   url: string | null;
@@ -37,7 +38,11 @@ export default function ProjectView({ project }: { project: Project }) {
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [currentPage, setCurrentPage] = useState("/");
+  const [currentPage, _setCurrentPage] = useState("/");
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const initPrompt = searchParams.get("initialPrompt");
 
   // Initialize with welcome message
   useEffect(() => {
@@ -45,8 +50,8 @@ export default function ProjectView({ project }: { project: Project }) {
       {
         id: generateId(),
         role: "assistant",
-        content: `# Welcome to your project: ${project.name}\n\nI'm your AI assistant ready to help you build and modify your application. You can ask me questions, request changes, or give commands to modify the code.\n\n
-        }\n\nWhat would you like to do with your project today?`,
+        content: `Welcome to your project: ${project.name}\n\nI'm your AI assistant ready to help you build and modify your application. You can ask me questions, request changes, or give commands to modify the code.\n
+        \nWhat would you like to do with your project today?`,
         timestamp: Date.now(),
       },
     ]);
@@ -58,6 +63,16 @@ export default function ProjectView({ project }: { project: Project }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // This is a bit wack but that'll do since it's just a super MVP
+  useEffect(() => {
+    if (!isLoading) {
+      if (initPrompt && typeof initPrompt == "string") {
+        sendMessage(initPrompt);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initPrompt]);
 
   const handleIframeLoad = () => {
     setIframe((prev) => ({ ...prev, loading: false }));
@@ -137,14 +152,15 @@ export default function ProjectView({ project }: { project: Project }) {
     }
   };
 
-  // Handle sending messages
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (data?: string) => {
+    const content = data || input;
+    
+    if (!content.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: generateId(),
       role: "user",
-      content: input,
+      content: content,
       timestamp: Date.now(),
     };
 

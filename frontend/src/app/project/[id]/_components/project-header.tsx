@@ -12,9 +12,8 @@ interface ProjectHeaderProps {
 export function ProjectHeader({ project, currentPage, isThinking, onRefresh }: ProjectHeaderProps) {
   return (
     <header className="h-14 border-b border-zinc-800 flex items-center px-4">
-      <h1 className="font-semibold">{project.name}</h1>
       <div className="ml-3 px-2 py-1 text-xs rounded-full bg-zinc-800 text-zinc-400">
-        {project.status}
+        ready
       </div>
       {currentPage && (
         <div className="ml-4 text-sm text-zinc-500">

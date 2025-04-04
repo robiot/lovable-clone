@@ -25,17 +25,21 @@ export async function POST(request: Request) {
     }
 
     // generate a name with AI
-    const projectname = await anthropic.messages.create({
+    const projectnameResponse = await anthropic.messages.create({
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 10,
       messages: [
         {
           role: "user",
-          content: `Create a short dash-separated name for the project based on this prompt: "${prompt}". It should be a maximum of 3 words, separated by dashes only. Do not under any circumstance answer with more than 3 words separated by dashes.`,
+          content: `Create a short dash-separated name for the project based on this prompt: "${body.prompt}". It should be a maximum of 3 words, separated by dashes only. Do not under any circumstance answer with more than 3 words separated by dashes.`,
         },
       ],
     });
 
+    const projectname = projectnameResponse.content[0]?.type === 'text' 
+      ? projectnameResponse.content[0].text 
+      : 'untitled-project';
+    
     // Generate a unique ID for the project
     const projectId = generateId();
     const projectDir = path.join(PROJECTS_DIR, projectId);
@@ -44,8 +48,9 @@ export async function POST(request: Request) {
     const projectData = {
       id: projectId,
       name: projectname,
-      description: body.prompt,
+      first_prompt: body.prompt,
       createdAt: Date.now(),
+      status: "inactive",
     };
 
     // Copy template to project directory

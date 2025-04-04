@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// /app/api/chat/route.ts
+
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, runCommand } from "@/lib/server-utils";
@@ -5,25 +8,20 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import type { ChatRequest } from "@/types/chat";
 
-// Projects directory
 const PROJECTS_DIR = path.join(process.cwd(), "projects");
 
 export async function POST(request: Request) {
   try {
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY environment variable is not set" },
+        { error: "ANTHROPIC_API_KEY not set" },
         { status: 500 }
       );
     }
 
     const body = (await request.json()) as ChatRequest;
 
-    if (
-      !body.messages ||
-      !Array.isArray(body.messages) ||
-      body.messages.length === 0
-    ) {
+    if (!body.messages?.length) {
       return NextResponse.json(
         { error: "Messages are required" },
         { status: 400 }
@@ -34,30 +32,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No project ID" }, { status: 400 });
     }
 
-    let systemPrompt =
-      "You are an AI assistant helping with a web development project. ";
-
-    if (body.current_page) {
-      systemPrompt += `The user is currently viewing ${body.current_page}. `;
-    }
-
     const projectDir = path.join(PROJECTS_DIR, body.projectId);
-    try {
-      const projectDataPath = path.join(projectDir, "project.json");
-      const projectData = JSON.parse(
-        await fs.readFile(projectDataPath, "utf8")
-      );
+    const systemPrompt = await buildSystemPrompt(
+      body.projectId,
+      body.current_page,
+      projectDir
+    );
 
-      systemPrompt += `You are working on a project called "${projectData.name}" with description: "${projectData.description}". `;
-      systemPrompt += `The project is located at ${projectDir}. `;
-    } catch (error) {
-      console.error(`Error loading project data for ${body.projectId}:`, error);
-    }
-
-    systemPrompt +=
-      "You can perform terminal commands in the project directory to help the user. Always provide clear explanations of what you're doing.";
-
-    // Create properly typed messages array for Anthropic
     const messages = [
       { role: "assistant" as const, content: systemPrompt },
       ...body.messages.map((msg) => ({
@@ -69,72 +50,146 @@ export async function POST(request: Request) {
     const response = await anthropic.messages.create({
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 4000,
-      messages: messages,
+      tools: [
+        {
+          name: "run_command",
+          description: "Run a terminal command inside the project folder",
+          input_schema: {
+            type: "object",
+            properties: {
+              command: { type: "string", description: "The command to run" },
+            },
+            required: ["command"],
+          },
+        },
+        {
+          name: "read_file",
+          description: "Read a file from the project directory",
+          input_schema: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+            },
+            required: ["path"],
+          },
+        },
+        {
+          name: "write_file",
+          description: "Write content to a file in the project",
+          input_schema: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              content: { type: "string" },
+            },
+            required: ["path", "content"],
+          },
+        },
+      ],
+      messages,
     });
 
-    // Extract text content from the response
-    const aiResponse =
-      response.content.find((c) => c.type === "text")?.text ||
-      "I'm sorry, I couldn't generate a proper response.";
+    const toolCall = response.content.find((c) => c.type === "tool_use");
 
-    // Check if the response contains a command to execute
-    const commandMatch = aiResponse.match(/```bash\n([\s\S]*?)```/);
-    let commandResult = null;
+    if (toolCall && toolCall.type === "tool_use") {
+      const toolResult = await handleTool(toolCall, projectDir);
 
-    if (commandMatch && body.projectId) {
-      const command = commandMatch[1].trim();
-      const projectDir = path.join(PROJECTS_DIR, body.projectId);
+      const followup = await anthropic.messages.create({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 4000,
+        tools: [], // tools already used
+        messages: [
+          ...messages,
+          response, // original tool_use message
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: toolCall.id,
+                content: toolResult,
+              },
+            ],
+          },
+        ],
+      });
 
-      try {
-        // Execute the command
-        const result = await runCommand(command, projectDir);
-        commandResult = {
-          command,
-          output: result.stdout,
-          error: result.stderr,
-          success: result.success,
-        };
+      const finalResponse =
+        followup.content.find((c) => c.type === "text")?.text || "No response.";
 
-        // Update project status if it was in error state and the command fixed it
-        if (result.success) {
-          const projectDataPath = path.join(projectDir, "project.json");
-          const projectData = JSON.parse(
-            await fs.readFile(projectDataPath, "utf8")
-          );
-
-          if (projectData.status === "error") {
-            projectData.status = "ready";
-            projectData.error = undefined;
-
-            await fs.writeFile(
-              projectDataPath,
-              JSON.stringify(projectData, null, 2)
-            );
-          }
-        }
-      } catch (error) {
-        console.error(
-          `Error executing command for project ${body.projectId}:`,
-          error
-        );
-        commandResult = {
-          command,
-          output: "",
-          error: error instanceof Error ? error.message : String(error),
-          success: false,
-        };
-      }
+      return NextResponse.json({ response: finalResponse, toolResult });
     }
 
-    return NextResponse.json({
-      response: aiResponse,
-      commandResult,
-    });
+    const aiResponse =
+      response.content.find((c) => c.type === "text")?.text || "No response.";
+    return NextResponse.json({ response: aiResponse });
   } catch (error) {
-    console.error("Error in chat API:", error);
+    console.error("Chat error:", error);
     return NextResponse.json(
-      { error: "Failed to process chat request" },
+      { error: "Chat processing failed" },
       { status: 500 }
     );
+  }
+}
+
+async function buildSystemPrompt(
+  projectId: string,
+  currentPage: string | undefined,
+  projectDir: string
+) {
+  let prompt =
+    "You are an AI assistant helping with a web development project. ";
+
+  if (currentPage) prompt += `The user is currently viewing ${currentPage}. `;
+
+  try {
+    const projectDataPath = path.join(projectDir, "project.json");
+    const projectData = JSON.parse(await fs.readFile(projectDataPath, "utf8"));
+    prompt += `Project: "${projectData.name}", description: "${projectData.description}". `;
+  } catch (error) {
+    console.warn("Failed to load project.json:", error);
+  }
+
+  const os = process.platform === "win32" ? "Windows" : "Linux";
+  prompt += `OS: ${os}. User is using a web UI. `;
+  prompt += `Use the available tools when needed (like running commands or editing files).`;
+
+  return prompt;
+}
+
+async function handleTool(toolCall: any, projectDir: string): Promise<string> {
+  const { name, input } = toolCall;
+
+  switch (name) {
+    case "run_command": {
+      const result = await runCommand(input.command, projectDir);
+      if (result.success) {
+        try {
+          const pdPath = path.join(projectDir, "project.json");
+          const pd = JSON.parse(await fs.readFile(pdPath, "utf8"));
+          if (pd.status === "error") {
+            pd.status = "ready";
+            pd.error = undefined;
+            await fs.writeFile(pdPath, JSON.stringify(pd, null, 2));
+          }
+        } catch (_) {}
+      }
+      return `Output:\n${result.stdout}\nError:\n${result.stderr}`;
+    }
+
+    case "read_file": {
+      const filePath = path.join(projectDir, input.path);
+      const content = await fs.readFile(filePath, "utf8");
+      return content;
+    }
+
+    case "write_file": {
+      const filePath = path.join(projectDir, input.path);
+      await fs.writeFile(filePath, input.content, "utf8");
+      return `Wrote to ${input.path}`;
+    }
+
+    default:
+      return `Unknown tool: ${name}`;
   }
 }

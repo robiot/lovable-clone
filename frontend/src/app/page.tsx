@@ -51,7 +51,7 @@ export default function Home() {
         }
 
         // Redirect to project page
-        router.push(`/project/${data.projectId}`);
+        router.push(`/project/${data.projectId}?initialPrompt=${encodeURIComponent(prompt)}`);
       }
     } catch (error) {
       console.error("Error creating project:", error);
@@ -90,6 +90,12 @@ export default function Home() {
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      handleCreateProject(event);
+                    }
+                  }}
                   placeholder="Describe the app you want to build..."
                   className="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg p-4 text-white resize-none h-24 focus:outline-none focus:ring-0"
                   disabled={isLoading}
