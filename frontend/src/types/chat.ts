@@ -1,4 +1,4 @@
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = "user" | "assistant" | "system";
 
 export interface Message {
   id: string;
@@ -16,6 +16,7 @@ export interface ChatState {
 export interface ChatRequest {
   messages: { role: MessageRole; content?: string }[]; // Make content optional
   current_page?: string;
+  projectId?: string;
 }
 
 export interface Project {
@@ -24,7 +25,7 @@ export interface Project {
   description: string;
   createdAt: number;
   previewUrl?: string;
-  status: 'initializing' | 'ready' | 'error';
+  status: "initializing" | "ready" | "error";
   error?: string;
 }
 

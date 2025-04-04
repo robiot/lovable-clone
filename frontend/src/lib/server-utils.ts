@@ -42,6 +42,7 @@ export async function copyDirectory(source: string, destination: string) {
 export async function runCommand(command: string, cwd: string) {
   try {
     const { stdout, stderr } = await exec(command, { cwd });
+  
     return { stdout, stderr, success: true };
   } catch (error) {
     console.error(`Error executing command: ${command}`, error);

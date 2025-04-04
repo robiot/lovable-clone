@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import path from "node:path";
 import fs from "node:fs/promises";
 import type { Project } from "@/types/chat";
-import ProjectView from "@/components/project-view";
+import ProjectView from "./_components/project-view";
 
 // Projects directory
 const PROJECTS_DIR = path.join(process.cwd(), "projects");
